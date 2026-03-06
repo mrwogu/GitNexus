@@ -104,7 +104,11 @@ const isNodeExported = (node: any, name: string, language: string): boolean => {
     case 'c':
     case 'cpp':
       return false;
-    
+
+    // Dart: Public if no leading underscore (same convention as Python)
+    case 'dart':
+      return !name.startsWith('_');
+
     default:
       return false;
   }
