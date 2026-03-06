@@ -210,6 +210,107 @@ async function installClaudeCodeHooks(result: SetupResult): Promise<void> {
   }
 }
 
+async function setupFactory(result: SetupResult): Promise<void> {
+  const factoryDir = path.join(os.homedir(), '.factory');
+  if (!(await dirExists(factoryDir))) {
+    result.skipped.push('Factory AI (not installed)');
+    return;
+  }
+
+  // Factory AI uses droid mcp add for MCP configuration
+  console.log('');
+  console.log('  Factory AI (Droid) detected. Run this command to add GitNexus MCP:');
+  console.log('');
+  console.log('    droid mcp add gitnexus -- npx -y gitnexus mcp');
+  console.log('');
+  result.configured.push('Factory AI (MCP manual step printed)');
+}
+
+/**
+ * Install GitNexus skills to ~/.factory/skills/ for Factory AI.
+ */
+async function installFactorySkills(result: SetupResult): Promise<void> {
+  const factoryDir = path.join(os.homedir(), '.factory');
+  if (!(await dirExists(factoryDir))) return;
+
+  const skillsDir = path.join(factoryDir, 'skills');
+  try {
+    const installed = await installSkillsTo(skillsDir);
+    if (installed.length > 0) {
+      result.configured.push(`Factory AI skills (${installed.length} skills → ~/.factory/skills/)`);
+    }
+  } catch (err: any) {
+    result.errors.push(`Factory AI skills: ${err.message}`);
+  }
+}
+
+/**
+ * Install GitNexus hooks to ~/.factory/settings.json for Factory AI.
+ * Uses PostToolUse (Factory's PreToolUse doesn't support additionalContext).
+ * Uses Execute tool name (Factory's equivalent of Claude Code's Bash).
+ */
+async function installFactoryHooks(result: SetupResult): Promise<void> {
+  const factoryDir = path.join(os.homedir(), '.factory');
+  if (!(await dirExists(factoryDir))) return;
+
+  const settingsPath = path.join(factoryDir, 'settings.json');
+
+  // Source hooks bundled within the gitnexus package (hooks/factory/)
+  const pluginHooksPath = path.join(__dirname, '..', '..', 'hooks', 'factory');
+
+  // Copy unified hook script to ~/.factory/hooks/gitnexus/
+  const destHooksDir = path.join(factoryDir, 'hooks', 'gitnexus');
+
+  try {
+    await fs.mkdir(destHooksDir, { recursive: true });
+
+    const src = path.join(pluginHooksPath, 'gitnexus-hook.cjs');
+    const dest = path.join(destHooksDir, 'gitnexus-hook.cjs');
+    try {
+      let content = await fs.readFile(src, 'utf-8');
+      // Inject resolved CLI path so the copied hook can find the CLI
+      const resolvedCli = path.join(__dirname, '..', 'cli', 'index.js');
+      const normalizedCli = path.resolve(resolvedCli).replace(/\\/g, '/');
+      content = content.replace(
+        "let cliPath = path.resolve(__dirname, '..', '..', 'dist', 'cli', 'index.js');",
+        `let cliPath = '${normalizedCli}';`
+      );
+      await fs.writeFile(dest, content, 'utf-8');
+    } catch {
+      // Script not found in source — skip
+    }
+
+    const hookCmd = `node "${path.join(destHooksDir, 'gitnexus-hook.cjs').replace(/\\/g, '/')}"`;
+
+    // Merge hook config into ~/.factory/settings.json
+    const existing = await readJsonFile(settingsPath) || {};
+    if (!existing.hooks) existing.hooks = {};
+
+    // Add PostToolUse hook if not already present
+    // Factory's PreToolUse doesn't support additionalContext in output,
+    // so we use PostToolUse which does.
+    if (!existing.hooks.PostToolUse) existing.hooks.PostToolUse = [];
+    const hasPostToolHook = existing.hooks.PostToolUse.some(
+      (h: any) => h.hooks?.some((hh: any) => hh.command?.includes('gitnexus'))
+    );
+    if (!hasPostToolHook) {
+      existing.hooks.PostToolUse.push({
+        matcher: 'Grep|Glob|Execute',
+        hooks: [{
+          type: 'command',
+          command: hookCmd,
+          timeout: 8000,
+        }],
+      });
+    }
+
+    await writeJsonFile(settingsPath, existing);
+    result.configured.push('Factory AI hooks (PostToolUse)');
+  } catch (err: any) {
+    result.errors.push(`Factory AI hooks: ${err.message}`);
+  }
+}
+
 async function setupOpenCode(result: SetupResult): Promise<void> {
   const opencodeDir = path.join(os.homedir(), '.config', 'opencode');
   if (!(await dirExists(opencodeDir))) {
@@ -354,11 +455,14 @@ export const setupCommand = async () => {
   // Detect and configure each editor's MCP
   await setupCursor(result);
   await setupClaudeCode(result);
+  await setupFactory(result);
   await setupOpenCode(result);
-  
+
   // Install global skills for platforms that support them
   await installClaudeCodeSkills(result);
   await installClaudeCodeHooks(result);
+  await installFactorySkills(result);
+  await installFactoryHooks(result);
   await installCursorSkills(result);
   await installOpenCodeSkills(result);
 

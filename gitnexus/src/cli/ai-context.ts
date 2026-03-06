@@ -1,8 +1,8 @@
 /**
  * AI Context Generator
- * 
+ *
  * Creates AGENTS.md and CLAUDE.md with full inline GitNexus context.
- * AGENTS.md is the standard read by Cursor, Windsurf, OpenCode, Cline, etc.
+ * AGENTS.md is the standard read by Cursor, Windsurf, OpenCode, Cline, Factory AI, etc.
  * CLAUDE.md is for Claude Code which only reads that file.
  */
 
@@ -170,8 +170,8 @@ async function upsertGitNexusSection(
 }
 
 /**
- * Install GitNexus skills to .claude/skills/gitnexus/
- * Works natively with Claude Code, Cursor, and GitHub Copilot
+ * Install GitNexus skills to .claude/skills/gitnexus/ and .factory/skills/gitnexus/
+ * Works natively with Claude Code, Factory AI, Cursor, and GitHub Copilot
  */
 async function installSkills(repoPath: string): Promise<string[]> {
   const skillsDir = path.join(repoPath, '.claude', 'skills', 'gitnexus');
@@ -246,6 +246,39 @@ Use GitNexus tools to accomplish this task.
 }
 
 /**
+ * Install GitNexus skills to an arbitrary target directory.
+ * Reuses the same skill definitions as installSkills().
+ */
+async function installSkillsToDir(repoPath: string, skillsDir: string): Promise<string[]> {
+  const installedSkills: string[] = [];
+  const skillNames = ['gitnexus-exploring', 'gitnexus-debugging', 'gitnexus-impact-analysis', 'gitnexus-refactoring', 'gitnexus-guide', 'gitnexus-cli'];
+
+  for (const skillName of skillNames) {
+    const skillDir = path.join(skillsDir, skillName);
+    const skillPath = path.join(skillDir, 'SKILL.md');
+
+    try {
+      await fs.mkdir(skillDir, { recursive: true });
+      const packageSkillPath = path.join(__dirname, '..', '..', 'skills', `${skillName}.md`);
+      let skillContent: string;
+
+      try {
+        skillContent = await fs.readFile(packageSkillPath, 'utf-8');
+      } catch {
+        skillContent = `---\nname: ${skillName}\n---\n\nUse GitNexus tools to accomplish this task.\n`;
+      }
+
+      await fs.writeFile(skillPath, skillContent, 'utf-8');
+      installedSkills.push(skillName);
+    } catch {
+      // Skip on error
+    }
+  }
+
+  return installedSkills;
+}
+
+/**
  * Generate AI context files after indexing
  */
 export async function generateAIContextFiles(
@@ -267,10 +300,19 @@ export async function generateAIContextFiles(
   const claudeResult = await upsertGitNexusSection(claudePath, content);
   createdFiles.push(`CLAUDE.md (${claudeResult})`);
 
+  // Factory AI (Droid) reads AGENTS.md — no separate file needed.
+
   // Install skills to .claude/skills/gitnexus/
   const installedSkills = await installSkills(repoPath);
   if (installedSkills.length > 0) {
     createdFiles.push(`.claude/skills/gitnexus/ (${installedSkills.length} skills)`);
+  }
+
+  // Install skills to .factory/skills/gitnexus/
+  const factorySkillsDir = path.join(repoPath, '.factory', 'skills', 'gitnexus');
+  const factoryInstalledSkills = await installSkillsToDir(repoPath, factorySkillsDir);
+  if (factoryInstalledSkills.length > 0) {
+    createdFiles.push(`.factory/skills/gitnexus/ (${factoryInstalledSkills.length} skills)`);
   }
 
   return { files: createdFiles };

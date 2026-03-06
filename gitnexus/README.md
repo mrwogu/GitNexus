@@ -55,6 +55,12 @@ If you prefer to configure manually instead of using `gitnexus setup`:
 claude mcp add gitnexus -- npx -y gitnexus@latest mcp
 ```
 
+### Factory AI / Droid (full support — MCP + skills + hooks)
+
+```bash
+droid mcp add gitnexus -- npx -y gitnexus@latest mcp
+```
+
 ### Cursor / Windsurf
 
 Add to `~/.cursor/mcp.json` (global — works for all projects):

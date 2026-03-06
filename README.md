@@ -83,11 +83,12 @@ To configure MCP for your editor, run `npx gitnexus setup` once — or set it up
 | Editor                | MCP | Skills | Hooks (auto-augment) | Support        |
 | --------------------- | --- | ------ | -------------------- | -------------- |
 | **Claude Code** | Yes | Yes    | Yes (PreToolUse)     | **Full** |
+| **Factory AI (Droid)** | Yes | Yes    | Yes (PostToolUse)    | **Full** |
 | **Cursor**      | Yes | Yes    | —                   | MCP + Skills   |
 | **Windsurf**    | Yes | —     | —                   | MCP            |
 | **OpenCode**    | Yes | Yes    | —                   | MCP + Skills   |
 
-> **Claude Code** gets the deepest integration: MCP tools + agent skills + PreToolUse hooks that automatically enrich grep/glob/bash calls with knowledge graph context.
+> **Claude Code** and **Factory AI** get the deepest integration: MCP tools + agent skills + hooks that automatically enrich search calls with knowledge graph context.
 
 ### Community Integrations
 
@@ -101,6 +102,12 @@ If you prefer manual configuration:
 
 ```bash
 claude mcp add gitnexus -- npx -y gitnexus@latest mcp
+```
+
+**Factory AI / Droid** (full support — MCP + skills + hooks):
+
+```bash
+droid mcp add gitnexus -- npx -y gitnexus@latest mcp
 ```
 
 **Cursor** (`~/.cursor/mcp.json` — global, works for all projects):
@@ -182,7 +189,7 @@ gitnexus wiki --base-url <url>   # Wiki with custom LLM API base URL
 | `detect_impact` | Pre-commit change analysis — scope, affected processes, risk level       |
 | `generate_map`  | Architecture documentation from the knowledge graph with mermaid diagrams |
 
-**4 agent skills** installed to `.claude/skills/` automatically:
+**4 agent skills** installed to `.claude/skills/` and `.factory/skills/` automatically:
 
 - **Exploring** — Navigate unfamiliar code using the knowledge graph
 - **Debugging** — Trace bugs through call chains

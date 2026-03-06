@@ -48,6 +48,10 @@ coverage/
 # Claude Code worktrees
 .claude/worktrees/
 
+# Factory AI (Droid)
+.factory/settings.local.json
+.factory/worktrees/
+
 # Assets (screenshots, images)
 assets/
 
