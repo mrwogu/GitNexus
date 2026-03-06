@@ -57,7 +57,7 @@ const getDefinitionNodeFromCaptures = (captureMap: Record<string, any>): any | n
 
 /**
  * Check if a symbol (function, class, etc.) is exported/public
- * Handles all 9 supported languages with explicit logic
+ * Handles all supported languages with explicit logic
  *
  * @param node - The AST node for the symbol name
  * @param name - The symbol name
@@ -175,6 +175,10 @@ export const isNodeExported = (node: any, name: string, language: string): boole
         current = current.parent;
       }
       return false;
+
+    // Dart: Public if no leading underscore (same convention as Python)
+    case 'dart':
+      return !name.startsWith('_');
 
     // PHP: Check for visibility modifier or top-level scope
     case 'php':

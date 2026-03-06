@@ -15,10 +15,12 @@ import { createRequire } from 'node:module';
 import { SupportedLanguages } from '../../../config/supported-languages.js';
 import { LANGUAGE_QUERIES } from '../tree-sitter-queries.js';
 
-// tree-sitter-swift is an optionalDependency — may not be installed
+// tree-sitter-swift and tree-sitter-dart are optionalDependencies — may not be installed
 const _require = createRequire(import.meta.url);
 let Swift: any = null;
 try { Swift = _require('tree-sitter-swift'); } catch {}
+let Dart: any = null;
+try { Dart = _require('tree-sitter-dart'); } catch {}
 import { findSiblingChild, getLanguageFromFilename } from '../utils.js';
 import { detectFrameworkFromAST } from '../framework-detection.js';
 import { generateId } from '../../../lib/utils.js';
@@ -126,6 +128,7 @@ const languageMap: Record<string, any> = {
   [SupportedLanguages.Rust]: Rust,
   [SupportedLanguages.Kotlin]: Kotlin,
   [SupportedLanguages.PHP]: PHP.php_only,
+  ...(Dart ? { [SupportedLanguages.Dart]: Dart } : {}),
   ...(Swift ? { [SupportedLanguages.Swift]: Swift } : {}),
 };
 
@@ -257,6 +260,10 @@ const isNodeExported = (node: any, name: string, language: string): boolean => {
       }
       return false;
 
+    // Dart: Public if no leading underscore (same convention as Python)
+    case 'dart':
+      return !name.startsWith('_');
+
     default:
       return false;
   }
@@ -278,6 +285,8 @@ const FUNCTION_NODE_TYPES = new Set([
   'anonymous_function',
   // Swift initializers/deinitializers
   'init_declaration', 'deinit_declaration',
+  // Dart
+  'function_signature', 'method_signature', 'constructor_signature', 'factory_constructor_signature',
 ]);
 
 /** Walk up AST to find enclosing function, return its generateId or null for top-level */
@@ -325,6 +334,20 @@ const findEnclosingFunctionId = (node: any, filePath: string): string | null => 
             parent.children?.find((c: any) => c.type === 'identifier');
           funcName = nameNode?.text;
         }
+      } else if (current.type === 'function_signature' || current.type === 'method_signature') {
+        // Dart: function_signature has name field; method_signature wraps function_signature
+        const sig = current.type === 'method_signature'
+          ? current.children?.find((c: any) => c.type === 'function_signature')
+          : current;
+        const nameNode = sig?.childForFieldName?.('name') ||
+          sig?.children?.find((c: any) => c.type === 'identifier');
+        funcName = nameNode?.text;
+        label = current.type === 'method_signature' ? 'Method' : 'Function';
+      } else if (current.type === 'constructor_signature' || current.type === 'factory_constructor_signature') {
+        // Dart: constructors — use identifier child
+        const nameNode = current.children?.find((c: any) => c.type === 'identifier');
+        funcName = nameNode?.text;
+        label = 'Constructor';
       }
 
       if (funcName) {
@@ -447,6 +470,14 @@ const BUILT_INS = new Set([
   'sink', 'store', 'assign', 'receive', 'subscribe',
   // Notification / KVO
   'addObserver', 'removeObserver', 'post', 'NotificationCenter',
+  // Dart/Flutter built-ins
+  'debugPrint', 'runApp', 'setState', 'initState', 'dispose',
+  'didChangeDependencies', 'didUpdateWidget', 'deactivate',
+  'Navigator', 'pushNamed', 'pushReplacement', 'pushReplacementNamed',
+  'showDialog', 'showModalBottomSheet', 'showSnackBar', 'ScaffoldMessenger',
+  'Future', 'catchError', 'whenComplete', 'delayed',
+  'Stream', 'addStream', 'addError',
+  'notifyListeners',
 ]);
 
 // ============================================================================

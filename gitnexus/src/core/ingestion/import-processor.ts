@@ -216,6 +216,8 @@ const EXTENSIONS = [
   '.php', '.phtml',
   // Swift
   '.swift',
+  // Dart
+  '.dart',
 ];
 
 /**
@@ -917,6 +919,36 @@ export const processImports = async (
           return;
         }
 
+        // ---- Dart: handle package: and relative imports ----
+        if (language === SupportedLanguages.Dart) {
+          // Strip surrounding quotes from configurable_uri capture
+          const stripped = rawImportPath.replace(/^['"]|['"]$/g, '');
+          // Skip dart: SDK imports (dart:async, dart:io, etc.)
+          if (stripped.startsWith('dart:')) return;
+          // Skip external package: imports — only resolve local package imports
+          // Local package imports have the form: package:<pkg_name>/path.dart
+          // They map to lib/path.dart relative to the repo root
+          if (stripped.startsWith('package:')) {
+            // Extract the path after the first /: package:my_app/models/user.dart → models/user.dart
+            const slashIdx = stripped.indexOf('/');
+            if (slashIdx === -1) return;
+            const relPath = stripped.slice(slashIdx + 1);
+            // Try to find lib/<relPath> in the file set
+            const candidates = [`lib/${relPath}`, relPath];
+            for (const candidate of candidates) {
+              // Try with and without repo root prefix
+              for (const fp of allFileList) {
+                if (fp.endsWith('/' + candidate) || fp === candidate) {
+                  addImportEdge(file.path, fp);
+                  return;
+                }
+              }
+            }
+            return;
+          }
+          // Relative imports — fall through to standard resolution
+        }
+
         // ---- Standard single-file resolution ----
         const resolvedPath = resolveImportPath(
           file.path,
@@ -1103,6 +1135,31 @@ export const processImportsFromExtracted = async (
           }
         }
         continue;
+      }
+
+      // Dart: handle package: and relative imports
+      if (language === SupportedLanguages.Dart) {
+        const stripped = rawImportPath.replace(/^['"]|['"]$/g, '');
+        if (stripped.startsWith('dart:')) continue;
+        if (stripped.startsWith('package:')) {
+          const slashIdx = stripped.indexOf('/');
+          if (slashIdx === -1) continue;
+          const relPath = stripped.slice(slashIdx + 1);
+          const candidates = [`lib/${relPath}`, relPath];
+          let resolved = false;
+          for (const candidate of candidates) {
+            if (resolved) break;
+            for (const fp of allFileList) {
+              if (fp.endsWith('/' + candidate) || fp === candidate) {
+                addImportEdge(filePath, fp);
+                resolved = true;
+                break;
+              }
+            }
+          }
+          continue;
+        }
+        // Relative imports — fall through to standard resolution
       }
 
       // Standard resolution (has its own internal cache)
