@@ -1,0 +1,17 @@
+{
+  "name": "tree-sitter-dart",
+  "version": "1.0.0-gitnexus",
+  "description": "Dart grammar for tree-sitter (vendored for tree-sitter 0.21 ABI compatibility)",
+  "main": "bindings/node",
+  "license": "ISC",
+  "dependencies": {
+    "node-addon-api": "^8.3.0",
+    "node-gyp-build": "^4.8.0"
+  },
+  "peerDependencies": {
+    "tree-sitter": "^0.21.0"
+  },
+  "scripts": {
+    "install": "node-gyp-build"
+  }
+}
